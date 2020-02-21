@@ -9,6 +9,14 @@ public class Mesh {
 		this.tris = tris;
 	}
 	
+	public void rotateAxis(double[][] matrix) {
+		for (Triangle triangle : this.tris) {
+			triangle.getVertexA().multiplyByMatrix(matrix);
+			triangle.getVertexB().multiplyByMatrix(matrix);
+			triangle.getVertexC().multiplyByMatrix(matrix);
+		}
+	}
+		
 	
 	public String getMeshName() {
 		return this.name;
@@ -17,5 +25,7 @@ public class Mesh {
 	public ArrayList<Triangle> getTris() {
 		return this.tris;
 	}
+	
+		
 	
 }

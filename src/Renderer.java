@@ -10,6 +10,61 @@ import java.util.ArrayList;
 
 @SuppressWarnings("serial")
 public class Renderer extends JPanel {
+	
+	public static final int WIDTH = 800;
+	public static final int HEIGHT = 800;
+	public static final double FOV = 90;
+	public static final double Z_FAR = 1000;
+	public static final double Z_NEAR = 1;	
+	
+	/*
+	 * returns a rotation matrix according to the requested axis and the degree
+	 */
+	public static double[][] getRotationMatrix(char axis, double theta){
+		double sin = Math.sin(Math.toRadians(theta));
+		double cos = Math.cos(Math.toRadians(theta)); 
+		
+		switch(axis) {
+		
+		case 'X':
+		case 'x':
+			double[][] xMatrix = {
+					{1,			0,			0,			0},
+					{0,			cos,		sin,		0},
+					{0,			-sin,		cos,		0},
+					{0,			0,			0,			1}
+			};
+			return xMatrix;
+			
+		case 'Y':
+		case 'y':
+			double[][] yMatrix = {
+					{cos,			0,			-sin,		0},
+					{0,				1,			0,			0},
+					{sin,			0,			cos,		0},
+					{0,				0,			0,			1}
+			};
+			return yMatrix;
+			
+		case 'Z':
+		case 'z':
+			double[][] zMatrix = {
+					{cos,			sin,		0,			0},
+					{-sin,			cos,		0,			0},
+					{0,				0,			1,			0},
+					{0,				0,			0,			1}
+			};
+			return zMatrix;
+		
+		// if reached here we'll throw exception after the switch
+		default:
+			
+		}
+		// in case that the given axis is not valid throw exception
+		throw new IllegalArgumentException("Not a valid axis");
+		
+	}
+
 	private Mesh mesh;
 	
 	public Renderer(Mesh mesh) {
@@ -31,17 +86,60 @@ public class Renderer extends JPanel {
 		g2d.setColor(Color.white);
 		
 		for (Triangle triangle : this.mesh.getTris()) {
+			
+			Vertex vertexA = triangle.getVertexA();
+			Vertex vertexB = triangle.getVertexB();
+			Vertex vertexC = triangle.getVertexC();
+			
+			// make new vertices to be projected to not change the original vertices
+			Vertex projectedVertexA = new Vertex(vertexA.getX(), vertexA.getY(), vertexA.getZ());
+			Vertex projectedVertexB = new Vertex(vertexB.getX(), vertexB.getY(), vertexB.getZ());
+			Vertex projectedVertexC = new Vertex(vertexC.getX(), vertexC.getY(), vertexC.getZ());
+			
+			// move current mesh "forward" so the camera won't be "inside" the nesh
+			projectedVertexA.setZ(projectedVertexA.getZ() + 5);
+			projectedVertexB.setZ(projectedVertexB.getZ() + 5);
+			projectedVertexC.setZ(projectedVertexC.getZ() + 5);
+		
+			// move from 3D space to 2D space into perspective projection
+			double tan = Math.tan(Math.toRadians(FOV/2));
+			
+			double aspectRatio = Math.max(WIDTH/HEIGHT, HEIGHT/WIDTH);
+			
+			double[][] matrix = {
+					{aspectRatio*1/tan,		0,						0,									0},
+					{0,						aspectRatio*1/tan,		0,									0},
+					{0,						0,						(Z_FAR+Z_NEAR)/(Z_FAR-Z_NEAR),		1},
+					{0,						0,						2*(Z_FAR*Z_NEAR)/(Z_FAR-Z_NEAR),	0}
+			};
+			projectedVertexA.multiplyByMatrix(matrix);
+			projectedVertexB.multiplyByMatrix(matrix);
+			projectedVertexC.multiplyByMatrix(matrix);
+			
+			// convert from [-1,1] to [0,1] with respect to height and width
+			projectedVertexA.setX((projectedVertexA.getX() + 1)*0.5*WIDTH);
+			projectedVertexA.setY((projectedVertexA.getY() + 1)*0.5*HEIGHT);
+			
+			projectedVertexB.setX((projectedVertexB.getX() + 1)*0.5*WIDTH);
+			projectedVertexB.setY((projectedVertexB.getY() + 1)*0.5*HEIGHT);
+			
+			projectedVertexC.setX((projectedVertexC.getX() + 1)*0.5*WIDTH);
+			projectedVertexC.setY((projectedVertexC.getY() + 1)*0.5*HEIGHT);
+			
+			
+			
+			
 			// drawing A -> B
-			g2d.draw(new Line2D.Double(triangle.getVertexA().getX(), triangle.getVertexA().getY(),
-					triangle.getVertexB().getX(), triangle.getVertexB().getY()));
+			g2d.draw(new Line2D.Double(projectedVertexA.getX(), projectedVertexA.getY(),
+					projectedVertexB.getX(), projectedVertexB.getY()));
 			
 			// drawing B -> C
-			g2d.draw(new Line2D.Double(triangle.getVertexB().getX(), triangle.getVertexB().getY(),
-					triangle.getVertexC().getX(), triangle.getVertexC().getY()));
+			g2d.draw(new Line2D.Double(projectedVertexB.getX(), projectedVertexB.getY(),
+					projectedVertexC.getX(), projectedVertexC.getY()));
 			
 			// drawing C -> A
-			g2d.draw(new Line2D.Double(triangle.getVertexC().getX(), triangle.getVertexC().getY(),
-					triangle.getVertexA().getX(), triangle.getVertexA().getY()));
+			g2d.draw(new Line2D.Double(projectedVertexC.getX(), projectedVertexC.getY(),
+					projectedVertexA.getX(), projectedVertexA.getY()));
 		}
 		
 		
@@ -52,39 +150,29 @@ public class Renderer extends JPanel {
 		// basic set up of frame to display our panel on screen
 		JFrame frame = new JFrame();
 		frame.setTitle("3D Render Engine");
-		frame.setSize(800,800);
+		frame.setSize(HEIGHT,WIDTH);
 		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-		
+	
 		// ---create cube mesh---
 		
-		// 8 vertices for the cube (order by binary representation)
-		Vertex v0 = new Vertex(400,400,400); // (0,0,0)
-		Vertex v1 = new Vertex(400,400,500); // (0,0,1)
-		Vertex v2 = new Vertex(400,500,400); // and so on ...
-		Vertex v3 = new Vertex(400,500,500);
-		Vertex v4 = new Vertex(500,400,400);
-		Vertex v5 = new Vertex(500,400,500);
-		Vertex v6 = new Vertex(500,500,400);
-		Vertex v7 = new Vertex(500,500,500);
-		
 		// front
-		Triangle triangle1 = new Triangle(v0, v2, v6);
-		Triangle triangle2 = new Triangle(v0, v4, v6);
+		Triangle triangle1 = new Triangle(new Vertex(0,0,0), new Vertex(0,1,0), new Vertex(1,1,0));
+		Triangle triangle2 = new Triangle(new Vertex(0,0,0), new Vertex(1,0,0), new Vertex(1,1,0));
 		// back
-		Triangle triangle3 = new Triangle(v5, v7, v3);
-		Triangle triangle4 = new Triangle(v5, v1, v3);
+		Triangle triangle3 = new Triangle(new Vertex(1,0,1), new Vertex(1,1,1), new Vertex(0,1,1));
+		Triangle triangle4 = new Triangle(new Vertex(1,0,1), new Vertex(0,0,1), new Vertex(0,1,1));
 		// left
-		Triangle triangle5 = new Triangle(v0, v2, v3);
-		Triangle triangle6 = new Triangle(v0, v1, v3);
+		Triangle triangle5 = new Triangle(new Vertex(0,0,0), new Vertex(0,1,0), new Vertex(0,1,1));
+		Triangle triangle6 = new Triangle(new Vertex(0,0,0), new Vertex(0,0,1), new Vertex(0,1,1));
 		// right
-		Triangle triangle7 = new Triangle(v5, v7, v6);
-		Triangle triangle8 = new Triangle(v5, v4, v6);
+		Triangle triangle7 = new Triangle(new Vertex(1,0,1), new Vertex(1,1,1), new Vertex(1,1,0));
+		Triangle triangle8 = new Triangle(new Vertex(1,0,1), new Vertex(1,0,0), new Vertex(1,1,0));
 		// top
-		Triangle triangle9 = new Triangle(v2, v3, v7);
-		Triangle triangle10 = new Triangle(v2, v6, v7);
+		Triangle triangle9 = new Triangle(new Vertex(0,1,0), new Vertex(0,1,1), new Vertex(1,1,1));
+		Triangle triangle10 = new Triangle(new Vertex(0,1,0), new Vertex(1,1,0), new Vertex(1,1,1));
 		// bottom
-		Triangle triangle11 = new Triangle(v4, v5, v1);
-		Triangle triangle12 = new Triangle(v4, v0, v1);
+		Triangle triangle11 = new Triangle(new Vertex(1,0,0), new Vertex(1,0,1), new Vertex(0,0,1));
+		Triangle triangle12 = new Triangle(new Vertex(1,0,0), new Vertex(0,0,0), new Vertex(0,0,1));
 		
 		// adding triangles to tris
 		ArrayList<Triangle> tris = new ArrayList<Triangle>();;
@@ -103,17 +191,30 @@ public class Renderer extends JPanel {
 		
 		// creating mesh with tris
 		Mesh mesh = new Mesh("Cube", tris);
+		
 		// rendering mesh
 		Renderer renderer = new Renderer(mesh);
 		frame.setContentPane(renderer);
 		
 		frame.setVisible(true);
 		
-		//frame.validate();
-		//frame.repaint();
+		for(int i=0;i<100000;i++) {
+
+		try {
+			Thread.sleep(4);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 		
+		// make rotations and movements
+		mesh.rotateAxis(getRotationMatrix('X',0.1));
+		mesh.rotateAxis(getRotationMatrix('Y',-0.1));
+		mesh.rotateAxis(getRotationMatrix('Z',0.2));
+		
+		frame.validate();
+		frame.repaint();
+		}
+	
 	}
-	
-	
 	
 }

@@ -23,5 +23,4 @@ public class Triangle {
 		return this.c;
 	}
 	
-	
 }
